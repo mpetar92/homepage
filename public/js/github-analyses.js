@@ -23,27 +23,33 @@ globalThis.loadReports = async function() {
             const reportItem = document.createElement('div');
             reportItem.classList.add('report-item');
             reportItem.innerHTML = `
-                <div class="repo-name"><i class="fab fa-github"></i> ${report.repository}</div>
-                <div class="report-meta">
-                    <div class="report-date"><i class="far fa-calendar"></i> ${new Date(report.generatedAt).toLocaleDateString()}</div>
-                    <div class="report-period"><i class="far fa-clock"></i> ${report.period}</div>
+                <div class="report-content" onclick="viewReport(${JSON.stringify(report).replace(/"/g, '&quot;')})">
+                    <div class="repo-name"><i class="fab fa-github"></i> ${report.repository}</div>
+                    <div class="report-meta">
+                        <div class="report-date"><i class="far fa-calendar"></i> ${new Date(report.generatedAt).toLocaleDateString()}</div>
+                        <div class="report-period"><i class="far fa-clock"></i> ${report.period}</div>
+                    </div>
+                    <div class="report-summary">
+                        <div class="summary-item">
+                            <i class="fas fa-code-branch"></i>
+                            <span>${report.summary.totalCommits}</span>
+                        </div>
+                        <div class="summary-item">
+                            <i class="fas fa-code-merge"></i>
+                            <span>${report.summary.totalPrs}</span>
+                        </div>
+                        <div class="summary-item">
+                            <i class="fas fa-users"></i>
+                            <span>${report.summary.activeContributors}</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="report-summary">
-                    <div class="summary-item">
-                        <i class="fas fa-code-branch"></i>
-                        <span>${report.summary.totalCommits}</span>
-                    </div>
-                    <div class="summary-item">
-                        <i class="fas fa-code-merge"></i>
-                        <span>${report.summary.totalPrs}</span>
-                    </div>
-                    <div class="summary-item">
-                        <i class="fas fa-users"></i>
-                        <span>${report.summary.activeContributors}</span>
-                    </div>
+                <div class="report-actions">
+                    <button class="delete-btn" onclick="deleteReport('${report.id}', '${report.repository}')" title="Delete Report">
+                        <i class="fas fa-trash"></i>
+                    </button>
                 </div>
             `;
-            reportItem.onclick = () => viewReport(report);
             reportsList.appendChild(reportItem);
         });
 
@@ -210,6 +216,54 @@ globalThis.generateNewReport = async function() {
     } catch (error) {
         console.error('Error generating report:', error);
         alert(`Error: ${error.message}`);
+    }
+}
+
+// Function to delete a report
+globalThis.deleteReport = async function(reportId, repositoryName) {
+    // Show confirmation dialog
+    const confirmed = confirm(`Are you sure you want to delete the analysis report for ${repositoryName}?\n\nThis action cannot be undone.`);
+    
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/github/reports/${reportId}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to delete report');
+        }
+
+        // Show success message
+        alert(`Report for ${repositoryName} has been deleted successfully.`);
+        
+        // Reload reports list
+        loadReports();
+        
+        // Clear the content area if the deleted report was currently displayed
+        const contentArea = document.getElementById('content-area');
+        if (contentArea.innerHTML.includes(repositoryName)) {
+            contentArea.innerHTML = `
+                <div class="welcome-state">
+                    <div class="welcome-message">
+                        <i class="fab fa-github" style="font-size: 4rem; color: var(--text-muted); margin-bottom: 2rem;"></i>
+                        <h2>Report Deleted</h2>
+                        <p>The analysis report has been deleted successfully. Select another report from the sidebar or generate a new one.</p>
+                        <div class="welcome-actions">
+                            <button class="btn-primary" onclick="showNewReportDialog()">
+                                <i class="fas fa-plus"></i> Generate New Report
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error deleting report:', error);
+        alert(`Failed to delete report: ${error.message}`);
     }
 }
 

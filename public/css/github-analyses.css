@@ -136,13 +136,13 @@
 }
 
 .report-item {
-    padding: 1rem;
     border: 1px solid var(--border-color);
     border-radius: 0.5rem;
     margin-bottom: 0.75rem;
-    cursor: pointer;
     transition: all 0.2s ease;
     background: var(--background-secondary);
+    display: flex;
+    align-items: stretch;
 }
 
 .report-item:hover {
@@ -213,6 +213,45 @@
 .summary-item span {
     font-weight: 600;
     color: var(--text-primary);
+    font-size: 0.875rem;
+}
+
+/* Report Item Layout */
+.report-content {
+    flex: 1;
+    padding: 1rem;
+    cursor: pointer;
+}
+
+.report-actions {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem;
+    border-left: 1px solid var(--border-color);
+}
+
+.delete-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+}
+
+.delete-btn:hover {
+    background: #ff4757;
+    color: white;
+    transform: scale(1.1);
+}
+
+.delete-btn i {
     font-size: 0.875rem;
 }
 
