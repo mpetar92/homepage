@@ -547,3 +547,32 @@ body {
 .loading {
     animation: pulse 2s infinite;
 }
+
+/* Logout Button */
+.logout-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.75rem;
+    border-radius: var(--border-radius-sm);
+    transition: all 0.3s ease;
+    margin-left: 1rem;
+}
+
+.logout-btn:hover {
+    background: var(--surface-secondary);
+    color: var(--danger-color);
+    transform: translateY(-1px);
+}
+
+.logout-btn i {
+    font-size: 1.25rem;
+}
+
+@media (max-width: 768px) {
+    .logout-btn {
+        margin-left: 0;
+        margin-top: 1rem;
+    }
+}

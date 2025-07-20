@@ -440,3 +440,52 @@ document.getElementById('new-task').addEventListener('keypress', function(e) {
         addTask();
     }
 });
+
+// Logout functionality
+async function logout() {
+    try {
+        const response = await fetch('/api/logout', {
+            method: 'POST',
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            window.location.href = '/login';
+        } else {
+            console.error('Logout failed');
+        }
+    } catch (error) {
+        console.error('Logout error:', error);
+        // Force redirect to login page anyway
+        window.location.href = '/login';
+    }
+}
+
+// Check authentication status on page load
+async function checkAuth() {
+    try {
+        const response = await fetch('/api/auth', {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            window.location.href = '/login';
+            return false;
+        }
+        
+        const authData = await response.json();
+        if (!authData.authenticated) {
+            window.location.href = '/login';
+            return false;
+        }
+        
+        return true;
+    } catch (error) {
+        console.error('Auth check failed:', error);
+        window.location.href = '/login';
+        return false;
+    }
+}
+
+// Initialize auth check
+checkAuth();
