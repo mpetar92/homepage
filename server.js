@@ -51,7 +51,7 @@ class MongoSessionStore {
   // Initialize the session store with TTL index
   async initialize() {
     if (this.initialized) return
-    
+
     try {
       // Create TTL index on expires field for automatic cleanup
       await this.collection.createIndex(
@@ -68,23 +68,23 @@ class MongoSessionStore {
   // Fastify session store interface methods
   async get(sessionId, callback) {
     try {
-      const session = await this.collection.findOne({ 
+      const session = await this.collection.findOne({
         _id: sessionId,
         expires: { $gt: new Date() } // Only get non-expired sessions
       })
-      
+
       if (session && session.data) {
         console.log('Session retrieved:', { sessionId, hasData: true })
         if (callback) callback(null, session.data)
         return session.data
       }
-      
+
       // If session expired or doesn't exist, clean it up
       if (session) {
         await this.collection.deleteOne({ _id: sessionId })
         console.log('Expired session cleaned up:', { sessionId })
       }
-      
+
       if (callback) callback(null, null)
       return null
     } catch (error) {
@@ -99,17 +99,17 @@ class MongoSessionStore {
       if (!this.initialized) {
         await this.initialize()
       }
-      
+
       const expiresIn = session.cookie?.maxAge || 86400000 // Default 24 hours
       const expiresAt = new Date(Date.now() + expiresIn)
-      
-      console.log('Setting session:', { 
-        sessionId, 
+
+      console.log('Setting session:', {
+        sessionId,
         hasData: !!session,
         expiresAt: expiresAt.toISOString(),
         maxAge: expiresIn
       })
-      
+
       const result = await this.collection.replaceOne(
         { _id: sessionId },
         {
@@ -121,13 +121,13 @@ class MongoSessionStore {
         },
         { upsert: true }
       )
-      
-      console.log('Session set result:', { 
-        sessionId, 
-        modified: result.modifiedCount, 
-        upserted: result.upsertedCount 
+
+      console.log('Session set result:', {
+        sessionId,
+        modified: result.modifiedCount,
+        upserted: result.upsertedCount
       })
-      
+
       if (callback) callback(null)
     } catch (error) {
       console.error('Session set error:', error)
@@ -183,7 +183,7 @@ class MongoSessionStore {
 // Hash admin password on startup
 let adminPasswordHash
 async function initializeAuth() {
-  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123'
+  const adminPassword = process.env.ADMIN_PASSWORD
   adminPasswordHash = await bcrypt.hash(adminPassword, 12)
   console.log('Admin authentication initialized')
 }
@@ -195,7 +195,7 @@ let sessionStore
 fastify.register(async function (fastify) {
   // Initialize MongoDB session store
   sessionStore = new MongoSessionStore(db)
-  
+
   try {
     // Try to register session plugin with MongoDB store
     await fastify.register(require('@fastify/session'), {
@@ -269,9 +269,9 @@ fastify.register(async function (fastify) {
       }
 
       // Check credentials
-      const adminUsername = process.env.ADMIN_USERNAME || 'admin'
+      const adminUsername = process.env.ADMIN_USERNAME
       const isValidUsername = username === adminUsername
-      const isValidPassword = await bcrypt.compare(password, adminPasswordHash)
+      const isValidPassword = password == process.env.ADMIN_PASSWORD
 
       console.log('Credential check:', { isValidUsername, isValidPassword })
 
@@ -299,7 +299,7 @@ fastify.register(async function (fastify) {
         authenticated: request.session.authenticated,
         username: request.session.username
       })
-      
+
       console.log('Sending response...')
       return reply.send({ success: true, message: 'Login successful' })
     } catch (error) {
@@ -510,7 +510,7 @@ fastify.register(async function (fastify) {
       try {
         const collection = db.collection('github_reports')
         const reports = await collection.find({}).sort({ generatedAt: -1 }).limit(20).toArray()
-        
+
         return {
           reports: reports.map(report => ({
             id: report._id,
@@ -535,14 +535,14 @@ fastify.register(async function (fastify) {
       try {
         const { id } = request.params
         const { ObjectId } = require('mongodb')
-        
+
         if (!ObjectId.isValid(id)) {
           return reply.code(400).send({ error: 'Invalid report ID' })
         }
 
         const collection = db.collection('github_reports')
         const report = await collection.findOne({ _id: new ObjectId(id) })
-        
+
         if (!report) {
           return reply.code(404).send({ error: 'Report not found' })
         }
@@ -555,98 +555,20 @@ fastify.register(async function (fastify) {
     })
 
     // Generate new analysis report (user-triggered)
-    fastify.post('/api/github/reports/generate', async (request, reply) => {
-      try {
-        let authenticatedUser = null;
-        
-        // Check for session authentication first
-        if (request.session?.authenticated) {
-          authenticatedUser = request.session.username;
-        } else {
-          // Check for Basic Auth header
-          const authHeader = request.headers.authorization;
-          if (!authHeader || !authHeader.startsWith('Basic ')) {
-            reply.code(401).send({ error: 'Unauthorized - Basic Auth required' });
-            return;
-          }
-
-          // Decode basic auth header
-          const base64Credentials = authHeader.split(' ')[1];
-          const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii');
-          const [username, password] = credentials.split(':');
-
-          // Check against environment variables
-          const validUsername = process.env.BASIC_AUTH_USERNAME || process.env.ADMIN_USERNAME;
-          const validPassword = process.env.BASIC_AUTH_PASSWORD;
-          
-          if (!validUsername || !validPassword) {
-            reply.code(503).send({ 
-              error: 'Basic Auth not configured', 
-              message: 'Please set BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD environment variables' 
-            });
-            return;
-          }
-          
-          if (username !== validUsername || password !== validPassword) {
-            reply.code(401).send({ error: 'Invalid credentials' });
-            return;
-          }
-          
-          authenticatedUser = username;
-        }
-        
-        const { owner, repo, days } = request.body
-        const repoOwner = owner || process.env.GITHUB_OWNER || 'everli'
-        const repoName = repo || process.env.GITHUB_REPO || 'ev3rli'
-        const analysisDays = parseInt(days) || 7
-
-        if (!process.env.GITHUB_TOKEN || !process.env.OPENAI_API_KEY) {
-          return reply.code(503).send({
-            error: 'GitHub and OpenAI API credentials not configured',
-            message: 'Please set GITHUB_TOKEN and OPENAI_API_KEY environment variables'
-          })
-        }
-
-        // Generate the analysis
-        const analysis = await githubAnalyzer.generateRepositoryReport(repoOwner, repoName, analysisDays)
-        
-        // Save to database
-        const collection = db.collection('github_reports')
-        const reportDoc = {
-          ...analysis,
-          createdBy: authenticatedUser,
-          createdAt: new Date().toISOString()
-        }
-        
-        const result = await collection.insertOne(reportDoc)
-        
-        return {
-          message: 'Report generated and saved successfully',
-          reportId: result.insertedId,
-          report: analysis
-        }
-      } catch (error) {
-        console.error('GitHub analysis generation error:', error)
-        reply.code(500).send({ 
-          error: 'Failed to generate analysis report', 
-          message: error.message 
-        })
-      }
-    })
 
     // Delete analysis report
     fastify.delete('/api/github/reports/:id', async (request, reply) => {
       try {
         const { id } = request.params
         const { ObjectId } = require('mongodb')
-        
+
         if (!ObjectId.isValid(id)) {
           return reply.code(400).send({ error: 'Invalid report ID' })
         }
 
         const collection = db.collection('github_reports')
         const result = await collection.deleteOne({ _id: new ObjectId(id) })
-        
+
         if (result.deletedCount === 0) {
           return reply.code(404).send({ error: 'Report not found' })
         }
@@ -676,9 +598,9 @@ fastify.register(async function (fastify) {
         return status
       } catch (error) {
         console.error('GitHub status error:', error)
-        reply.code(500).send({ 
-          error: 'Failed to get repository status', 
-          message: error.message 
+        reply.code(500).send({
+          error: 'Failed to get repository status',
+          message: error.message
         })
       }
     })
@@ -699,7 +621,7 @@ fastify.register(async function (fastify) {
         }
 
         const commits = await githubAnalyzer.fetchRecentCommits(repoOwner, repoName, analysisDays)
-        return { 
+        return {
           commits,
           metadata: {
             repository: `${repoOwner}/${repoName}`,
@@ -709,9 +631,9 @@ fastify.register(async function (fastify) {
         }
       } catch (error) {
         console.error('GitHub commits error:', error)
-        reply.code(500).send({ 
-          error: 'Failed to fetch commits', 
-          message: error.message 
+        reply.code(500).send({
+          error: 'Failed to fetch commits',
+          message: error.message
         })
       }
     })
@@ -795,6 +717,90 @@ fastify.register(async function (fastify) {
         reply.code(500).send({ error: 'Failed to create event' })
       }
     })
+  })
+
+  // GitHub Analysis API - Generate endpoint (with Basic Auth support)
+  const GitHubAnalyzer = require('./services/githubAnalyzer')
+  const githubAnalyzer = new GitHubAnalyzer()
+
+  // Generate new analysis report (supports both session auth and Basic Auth)
+  fastify.post('/api/github/reports/generate', async (request, reply) => {
+    try {
+      let authenticatedUser = null;
+
+      // Check for session authentication first
+      if (request.session?.authenticated) {
+        authenticatedUser = request.session.username;
+      } else {
+        // Check for Basic Auth header
+        const authHeader = request.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Basic ')) {
+          reply.code(401).send({ error: 'Unauthorized - Basic Auth required' });
+          return;
+        }
+
+        // Decode basic auth header
+        const base64Credentials = authHeader.split(' ')[1];
+        const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii');
+        const [username, password] = credentials.split(':');
+
+        // Check against environment variables
+        const validUsername = process.env.BASIC_AUTH_USERNAME || process.env.ADMIN_USERNAME;
+        const validPassword = process.env.BASIC_AUTH_PASSWORD;
+
+        if (!validUsername || !validPassword) {
+          reply.code(503).send({
+            error: 'Basic Auth not configured',
+            message: 'Please set BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD environment variables'
+          });
+          return;
+        }
+
+        if (username !== validUsername || password !== validPassword) {
+          reply.code(401).send({ error: 'Invalid credentials' });
+          return;
+        }
+
+        authenticatedUser = username;
+      }
+
+      const { owner, repo, days } = request.body
+      const repoOwner = owner || process.env.GITHUB_OWNER || 'everli'
+      const repoName = repo || process.env.GITHUB_REPO || 'ev3rli'
+      const analysisDays = parseInt(days) || 7
+
+      if (!process.env.GITHUB_TOKEN || !process.env.OPENAI_API_KEY) {
+        return reply.code(503).send({
+          error: 'GitHub and OpenAI API credentials not configured',
+          message: 'Please set GITHUB_TOKEN and OPENAI_API_KEY environment variables'
+        })
+      }
+
+      // Generate the analysis
+      const analysis = await githubAnalyzer.generateRepositoryReport(repoOwner, repoName, analysisDays)
+
+      // Save to database
+      const collection = db.collection('github_reports')
+      const reportDoc = {
+        ...analysis,
+        createdBy: authenticatedUser,
+        createdAt: new Date().toISOString()
+      }
+
+      const result = await collection.insertOne(reportDoc)
+
+      return {
+        message: 'Report generated and saved successfully',
+        reportId: result.insertedId,
+        report: analysis
+      }
+    } catch (error) {
+      console.error('GitHub analysis generation error:', error)
+      reply.code(500).send({
+        error: 'Failed to generate analysis report',
+        message: error.message
+      })
+    }
   })
 
   // Health check route (public)
