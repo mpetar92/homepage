@@ -37,23 +37,87 @@ fastify.register(require('@fastify/cors'), {
 })
 
 fastify.register(require('@fastify/cookie'), {
-  secret: process.env.SESSION_SECRET || 'fallback-secret-key',
-  parseOptions: {}
+  secret: process.env.SESSION_SECRET || 'fallback-secret-key'
 })
 
-fastify.register(require('@fastify/session'), {
-  secret: process.env.SESSION_SECRET || 'fallback-secret-key',
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-    sameSite: 'lax'
-  },
-  saveUninitialized: false
-})
+// Session store using MongoDB
+class MongoSessionStore {
+  constructor(db) {
+    this.db = db
+    this.collection = db.collection('sessions')
+  }
+
+  async get(sessionId) {
+    try {
+      const session = await this.collection.findOne({ _id: sessionId })
+      return session ? session.data : null
+    } catch (error) {
+      console.error('Session get error:', error)
+      return null
+    }
+  }
+
+  async set(sessionId, session) {
+    try {
+      await this.collection.replaceOne(
+        { _id: sessionId },
+        {
+          _id: sessionId,
+          data: session,
+          expires: new Date(Date.now() + (session.cookie?.maxAge || 86400000))
+        },
+        { upsert: true }
+      )
+    } catch (error) {
+      console.error('Session set error:', error)
+    }
+  }
+
+  async destroy(sessionId) {
+    try {
+      await this.collection.deleteOne({ _id: sessionId })
+    } catch (error) {
+      console.error('Session destroy error:', error)
+    }
+  }
+}
+
+// Hash admin password on startup
+let adminPasswordHash
+async function initializeAuth() {
+  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123'
+  adminPasswordHash = await bcrypt.hash(adminPassword, 12)
+  console.log('Admin authentication initialized')
+}
+
+// Initialize session store after MongoDB connection
+let sessionStore
+async function initializeSession() {
+  sessionStore = new MongoSessionStore(db)
+  
+  fastify.register(require('@fastify/session'), {
+    secret: process.env.SESSION_SECRET || 'fallback-secret-key',
+    store: sessionStore,
+    cookie: {
+      secure: false, // Set to true in production with HTTPS
+      httpOnly: true,
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours default
+      sameSite: 'lax'
+    },
+    saveUninitialized: false
+  })
+  
+  console.log('Session store initialized')
+}
 
 // Auth middleware
 function requireAuth(request, reply, done) {
+  console.log('Auth check:', {
+    sessionId: request.session?.sessionId,
+    authenticated: request.session?.authenticated,
+    url: request.url
+  })
+  
   if (!request.session?.authenticated) {
     if (request.url.startsWith('/api/')) {
       reply.code(401).send({ error: 'Authentication required' })
@@ -64,13 +128,6 @@ function requireAuth(request, reply, done) {
     }
   }
   done()
-}
-
-// Hash admin password on startup
-let adminPasswordHash
-async function initializeAuth() {
-  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123'
-  adminPasswordHash = await bcrypt.hash(adminPassword, 12)
 }
 
 // Public routes (no auth required)
@@ -85,6 +142,8 @@ fastify.get('/login', async (request, reply) => {
 // Login API endpoint
 fastify.post('/api/login', async (request, reply) => {
   try {
+    console.log('Login attempt:', { username: request.body.username })
+    
     const { username, password, remember } = request.body
     
     if (!username || !password) {
@@ -96,6 +155,8 @@ fastify.post('/api/login', async (request, reply) => {
     const adminUsername = process.env.ADMIN_USERNAME || 'admin'
     const isValidUsername = username === adminUsername
     const isValidPassword = await bcrypt.compare(password, adminPasswordHash)
+    
+    console.log('Credential check:', { isValidUsername, isValidPassword })
     
     if (!isValidUsername || !isValidPassword) {
       // Add delay to prevent brute force attacks
@@ -116,6 +177,12 @@ fastify.post('/api/login', async (request, reply) => {
       request.session.cookie.maxAge = 24 * 60 * 60 * 1000 // 1 day
     }
     
+    console.log('Session created:', {
+      sessionId: request.session.sessionId,
+      authenticated: request.session.authenticated,
+      username: request.session.username
+    })
+    
     reply.send({ success: true, message: 'Login successful' })
   } catch (error) {
     console.error('Login error:', error)
@@ -126,6 +193,13 @@ fastify.post('/api/login', async (request, reply) => {
 // Logout endpoint
 fastify.post('/api/logout', async (request, reply) => {
   try {
+    const sessionId = request.session?.sessionId
+    console.log('Logout:', { sessionId })
+    
+    if (sessionId && sessionStore) {
+      await sessionStore.destroy(sessionId)
+    }
+    
     request.session.destroy()
     reply.send({ success: true, message: 'Logout successful' })
   } catch (error) {
@@ -136,7 +210,14 @@ fastify.post('/api/logout', async (request, reply) => {
 
 // Check auth status
 fastify.get('/api/auth', async (request, reply) => {
-  if (request.session?.authenticated) {
+  const isAuth = request.session?.authenticated
+  console.log('Auth status check:', {
+    sessionId: request.session?.sessionId,
+    authenticated: isAuth,
+    username: request.session?.username
+  })
+  
+  if (isAuth) {
     return {
       authenticated: true,
       username: request.session.username,
@@ -389,6 +470,7 @@ const start = async () => {
   try {
     await initializeAuth()
     await connectMongoDB()
+    await initializeSession()
     
     const port = process.env.PORT || 3000
     const host = '0.0.0.0'
