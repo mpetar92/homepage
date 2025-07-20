@@ -1,4 +1,5 @@
 require('dotenv').config()
+const path = require('path')
 const fastify = require('fastify')({ logger: true })
 const { MongoClient } = require('mongodb')
 
@@ -23,21 +24,33 @@ const connectMongoDB = async () => {
   }
 }
 
+// Register static file serving
+fastify.register(require('@fastify/static'), {
+  root: path.join(__dirname, 'public'),
+  prefix: '/'
+})
+
 // Register CORS
 fastify.register(require('@fastify/cors'), {
   origin: true
 })
 
-// Health check route
+// Homepage route - serve the HTML file
 fastify.get('/', async (request, reply) => {
+  return reply.sendFile('index.html')
+})
+
+// API status route
+fastify.get('/api/status', async (request, reply) => {
   return { 
     message: 'Fastify + MongoDB API is running!',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV
+    environment: process.env.NODE_ENV,
+    status: 'healthy'
   }
 })
 
-// Get all items
+// Get all items/projects
 fastify.get('/api/items', async (request, reply) => {
   try {
     const collection = db.collection('items')
@@ -48,10 +61,10 @@ fastify.get('/api/items', async (request, reply) => {
   }
 })
 
-// Create new item
+// Create new item/project
 fastify.post('/api/items', async (request, reply) => {
   try {
-    const { name, description } = request.body
+    const { name, description, technologies, github, demo } = request.body
     if (!name) {
       reply.code(400).send({ error: 'Name is required' })
       return
@@ -61,6 +74,9 @@ fastify.post('/api/items', async (request, reply) => {
     const newItem = {
       name,
       description: description || '',
+      technologies: technologies || [],
+      github: github || '',
+      demo: demo || '',
       createdAt: new Date()
     }
     
@@ -91,6 +107,56 @@ fastify.get('/api/items/:id', async (request, reply) => {
   } catch (error) {
     reply.code(500).send({ error: 'Failed to fetch item' })
   }
+})
+
+// Contact form submission
+fastify.post('/api/contact', async (request, reply) => {
+  try {
+    const { name, email, subject, message } = request.body
+    
+    if (!name || !email || !subject || !message) {
+      reply.code(400).send({ error: 'All fields are required' })
+      return
+    }
+    
+    const collection = db.collection('contacts')
+    const contactMessage = {
+      name,
+      email,
+      subject,
+      message,
+      createdAt: new Date(),
+      status: 'new'
+    }
+    
+    const result = await collection.insertOne(contactMessage)
+    
+    // In a real application, you might want to send an email notification here
+    console.log('New contact message received:', contactMessage)
+    
+    return { 
+      message: 'Contact message received successfully',
+      id: result.insertedId
+    }
+  } catch (error) {
+    reply.code(500).send({ error: 'Failed to submit contact form' })
+  }
+})
+
+// Get contact messages (for admin)
+fastify.get('/api/contacts', async (request, reply) => {
+  try {
+    const collection = db.collection('contacts')
+    const contacts = await collection.find({}).sort({ createdAt: -1 }).toArray()
+    return { contacts }
+  } catch (error) {
+    reply.code(500).send({ error: 'Failed to fetch contacts' })
+  }
+})
+
+// Health check route
+fastify.get('/health', async (request, reply) => {
+  return { status: 'OK', timestamp: new Date().toISOString() }
 })
 
 // Start server
