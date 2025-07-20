@@ -16,7 +16,7 @@ const connectMongoDB = async () => {
     
     client = new MongoClient(uri)
     await client.connect()
-    db = client.db('myapp')
+    db = client.db('dashboard')
     console.log('Connected to MongoDB')
   } catch (error) {
     console.error('MongoDB connection error:', error)
@@ -35,7 +35,7 @@ fastify.register(require('@fastify/cors'), {
   origin: true
 })
 
-// Homepage route - serve the HTML file
+// Dashboard homepage
 fastify.get('/', async (request, reply) => {
   return reply.sendFile('index.html')
 })
@@ -43,120 +43,214 @@ fastify.get('/', async (request, reply) => {
 // API status route
 fastify.get('/api/status', async (request, reply) => {
   return { 
-    message: 'Fastify + MongoDB API is running!',
+    message: 'Personal Dashboard API is running!',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV,
     status: 'healthy'
   }
 })
 
-// Get all items/projects
-fastify.get('/api/items', async (request, reply) => {
+// Tasks API
+fastify.get('/api/tasks', async (request, reply) => {
   try {
-    const collection = db.collection('items')
-    const items = await collection.find({}).toArray()
-    return { items }
+    const collection = db.collection('tasks')
+    const tasks = await collection.find({}).sort({ created: -1 }).toArray()
+    return { tasks }
   } catch (error) {
-    reply.code(500).send({ error: 'Failed to fetch items' })
+    reply.code(500).send({ error: 'Failed to fetch tasks' })
   }
 })
 
-// Create new item/project
-fastify.post('/api/items', async (request, reply) => {
+fastify.post('/api/tasks', async (request, reply) => {
   try {
-    const { name, description, technologies, github, demo } = request.body
-    if (!name) {
-      reply.code(400).send({ error: 'Name is required' })
+    const { text, completed = false } = request.body
+    if (!text) {
+      reply.code(400).send({ error: 'Task text is required' })
       return
     }
     
-    const collection = db.collection('items')
-    const newItem = {
-      name,
-      description: description || '',
-      technologies: technologies || [],
-      github: github || '',
-      demo: demo || '',
-      createdAt: new Date()
+    const collection = db.collection('tasks')
+    const newTask = {
+      text,
+      completed,
+      created: new Date().toISOString(),
+      updated: new Date().toISOString()
     }
     
-    const result = await collection.insertOne(newItem)
+    const result = await collection.insertOne(newTask)
     return { 
-      message: 'Item created successfully',
+      message: 'Task created successfully',
       id: result.insertedId,
-      item: newItem
+      task: newTask
     }
   } catch (error) {
-    reply.code(500).send({ error: 'Failed to create item' })
+    reply.code(500).send({ error: 'Failed to create task' })
   }
 })
 
-// Get single item by ID
-fastify.get('/api/items/:id', async (request, reply) => {
+fastify.put('/api/tasks', async (request, reply) => {
   try {
-    const { ObjectId } = require('mongodb')
-    const collection = db.collection('items')
-    const item = await collection.findOne({ _id: new ObjectId(request.params.id) })
-    
-    if (!item) {
-      reply.code(404).send({ error: 'Item not found' })
+    const { tasks } = request.body
+    if (!Array.isArray(tasks)) {
+      reply.code(400).send({ error: 'Tasks must be an array' })
       return
     }
     
-    return { item }
+    const collection = db.collection('tasks')
+    
+    // Clear existing tasks and insert new ones
+    await collection.deleteMany({})
+    if (tasks.length > 0) {
+      const tasksWithDates = tasks.map(task => ({
+        ...task,
+        created: task.created || new Date().toISOString(),
+        updated: new Date().toISOString()
+      }))
+      await collection.insertMany(tasksWithDates)
+    }
+    
+    return { message: 'Tasks updated successfully' }
   } catch (error) {
-    reply.code(500).send({ error: 'Failed to fetch item' })
+    reply.code(500).send({ error: 'Failed to update tasks' })
   }
 })
 
-// Contact form submission
-fastify.post('/api/contact', async (request, reply) => {
+// Notes API
+fastify.get('/api/notes', async (request, reply) => {
   try {
-    const { name, email, subject, message } = request.body
+    const collection = db.collection('notes')
+    const noteDoc = await collection.findOne({ type: 'quick_notes' })
+    return { notes: noteDoc?.content || '' }
+  } catch (error) {
+    reply.code(500).send({ error: 'Failed to fetch notes' })
+  }
+})
+
+fastify.post('/api/notes', async (request, reply) => {
+  try {
+    const { notes } = request.body
     
-    if (!name || !email || !subject || !message) {
-      reply.code(400).send({ error: 'All fields are required' })
+    const collection = db.collection('notes')
+    await collection.replaceOne(
+      { type: 'quick_notes' },
+      {
+        type: 'quick_notes',
+        content: notes || '',
+        updated: new Date().toISOString()
+      },
+      { upsert: true }
+    )
+    
+    return { message: 'Notes saved successfully' }
+  } catch (error) {
+    reply.code(500).send({ error: 'Failed to save notes' })
+  }
+})
+
+// System info API
+fastify.get('/api/system', async (request, reply) => {
+  try {
+    // Get basic system information
+    const uptime = process.uptime()
+    const uptimeHours = Math.floor(uptime / 3600)
+    const uptimeMinutes = Math.floor((uptime % 3600) / 60)
+    const uptimeString = `${uptimeHours}h ${uptimeMinutes}m`
+    
+    // Count running services (Docker containers)
+    let servicesCount = 4 // Default assumption
+    try {
+      const { exec } = require('child_process')
+      const { promisify } = require('util')
+      const execAsync = promisify(exec)
+      
+      const { stdout } = await execAsync('docker ps --format "table {{.Names}}" | wc -l')
+      const containerCount = parseInt(stdout.trim()) - 1 // Subtract header
+      servicesCount = containerCount > 0 ? containerCount : 4
+    } catch (error) {
+      // If docker command fails, use default
+    }
+    
+    return {
+      uptime: uptimeString,
+      services: servicesCount,
+      timestamp: new Date().toISOString()
+    }
+  } catch (error) {
+    reply.code(500).send({ error: 'Failed to get system info' })
+  }
+})
+
+// Weather API (placeholder - you'd integrate with a real weather service)
+fastify.get('/api/weather', async (request, reply) => {
+  try {
+    // Placeholder weather data
+    // In production, you'd integrate with OpenWeatherMap, AccuWeather, etc.
+    return {
+      location: 'Belgrade, RS',
+      temperature: Math.round(Math.random() * 30 + 5),
+      description: 'Partly cloudy',
+      feelsLike: Math.round(Math.random() * 30 + 5),
+      humidity: Math.round(Math.random() * 40 + 40),
+      windSpeed: Math.round(Math.random() * 20 + 5),
+      icon: 'fa-cloud-sun',
+      timestamp: new Date().toISOString()
+    }
+  } catch (error) {
+    reply.code(500).send({ error: 'Failed to get weather data' })
+  }
+})
+
+// Events/Calendar API (placeholder)
+fastify.get('/api/events', async (request, reply) => {
+  try {
+    const collection = db.collection('events')
+    const today = new Date().toISOString().split('T')[0]
+    
+    const todayEvents = await collection.find({
+      date: { $regex: `^${today}` }
+    }).toArray()
+    
+    return { events: todayEvents }
+  } catch (error) {
+    reply.code(500).send({ error: 'Failed to fetch events' })
+  }
+})
+
+fastify.post('/api/events', async (request, reply) => {
+  try {
+    const { title, date, time, description } = request.body
+    if (!title || !date) {
+      reply.code(400).send({ error: 'Title and date are required' })
       return
     }
     
-    const collection = db.collection('contacts')
-    const contactMessage = {
-      name,
-      email,
-      subject,
-      message,
-      createdAt: new Date(),
-      status: 'new'
+    const collection = db.collection('events')
+    const newEvent = {
+      title,
+      date,
+      time: time || '',
+      description: description || '',
+      created: new Date().toISOString()
     }
     
-    const result = await collection.insertOne(contactMessage)
-    
-    // In a real application, you might want to send an email notification here
-    console.log('New contact message received:', contactMessage)
-    
+    const result = await collection.insertOne(newEvent)
     return { 
-      message: 'Contact message received successfully',
-      id: result.insertedId
+      message: 'Event created successfully',
+      id: result.insertedId,
+      event: newEvent
     }
   } catch (error) {
-    reply.code(500).send({ error: 'Failed to submit contact form' })
-  }
-})
-
-// Get contact messages (for admin)
-fastify.get('/api/contacts', async (request, reply) => {
-  try {
-    const collection = db.collection('contacts')
-    const contacts = await collection.find({}).sort({ createdAt: -1 }).toArray()
-    return { contacts }
-  } catch (error) {
-    reply.code(500).send({ error: 'Failed to fetch contacts' })
+    reply.code(500).send({ error: 'Failed to create event' })
   }
 })
 
 // Health check route
 fastify.get('/health', async (request, reply) => {
-  return { status: 'OK', timestamp: new Date().toISOString() }
+  return { 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  }
 })
 
 // Start server
@@ -168,7 +262,7 @@ const start = async () => {
     const host = '0.0.0.0'
     
     await fastify.listen({ port, host })
-    console.log(`Server running on http://${host}:${port}`)
+    console.log(`Personal Dashboard running on http://${host}:${port}`)
   } catch (err) {
     fastify.log.error(err)
     process.exit(1)
