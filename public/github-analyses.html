@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Analyses - Personal Dashboard</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="apple-touch-icon" href="/favicon.svg">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/github-analyses.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="analyses-header">
+        <div class="container">
+            <div class="header-nav">
+                <button class="back-btn" onclick="goToDashboard()">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>Back to Dashboard</span>
+                </button>
+                <h1><i class="fab fa-github"></i> GitHub Analyses</h1>
+                <div class="header-actions">
+                    <button class="btn-primary" onclick="showNewReportDialog()">
+                        <i class="fas fa-plus"></i> New Report
+                    </button>
+                    <button class="refresh-btn" onclick="loadReports()">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Layout -->
+    <main class="analyses-main">
+        <div class="container">
+            <div class="analyses-layout">
+                <!-- Sidebar -->
+                <aside class="analyses-sidebar">
+                    <div class="sidebar-header">
+                        <h3>Available Reports</h3>
+                        <span class="report-count" id="report-count">0 reports</span>
+                    </div>
+                    <div class="sidebar-content">
+                        <div class="reports-list" id="reports-list">
+                            <!-- Reports will be loaded here -->
+                        </div>
+                    </div>
+                </aside>
+
+                <!-- Main Content -->
+                <section class="analyses-content">
+                    <div class="content-area" id="content-area">
+                        <div class="welcome-state">
+                            <div class="welcome-message">
+                                <i class="fab fa-github" style="font-size: 4rem; color: var(--text-muted); margin-bottom: 2rem;"></i>
+                                <h2>GitHub Repository Analysis</h2>
+                                <p>Select a report from the sidebar to view detailed analysis, or generate a new one to get started.</p>
+                                <div class="welcome-actions">
+                                    <button class="btn-primary" onclick="showNewReportDialog()">
+                                        <i class="fas fa-plus"></i> Generate New Report
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <!-- New Report Dialog (Modal) -->
+    <div id="new-report-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-chart-line"></i> Generate New Analysis Report</h3>
+                <button class="modal-close" onclick="hideNewReportDialog()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="report-owner">Repository Owner:</label>
+                    <input type="text" id="report-owner" placeholder="e.g., facebook, microsoft" />
+                </div>
+                <div class="form-group">
+                    <label for="report-repo">Repository Name:</label>
+                    <input type="text" id="report-repo" placeholder="e.g., react, vscode" />
+                </div>
+                <div class="form-group">
+                    <label for="report-days">Analysis Period:</label>
+                    <select id="report-days">
+                        <option value="1">Last 1 day</option>
+                        <option value="7" selected>Last 7 days</option>
+                        <option value="14">Last 14 days</option>
+                        <option value="30">Last 30 days</option>
+                    </select>
+                </div>
+                <div class="form-note">
+                    <i class="fas fa-info-circle"></i>
+                    <p>This will analyze the repository activity and generate an AI-powered report. The process may take 30-60 seconds.</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="hideNewReportDialog()">Cancel</button>
+                <button class="btn-primary" onclick="generateNewReport()" id="generate-btn">
+                    <i class="fas fa-cog"></i> Generate Report
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/github-analyses.js"></script>
+</body>
+</html>

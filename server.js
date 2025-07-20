@@ -45,42 +45,137 @@ class MongoSessionStore {
   constructor(db) {
     this.db = db
     this.collection = db.collection('sessions')
+    this.initialized = false
   }
 
-  async get(sessionId) {
+  // Initialize the session store with TTL index
+  async initialize() {
+    if (this.initialized) return
+    
     try {
-      const session = await this.collection.findOne({ _id: sessionId })
-      return session ? session.data : null
+      // Create TTL index on expires field for automatic cleanup
+      await this.collection.createIndex(
+        { expires: 1 },
+        { expireAfterSeconds: 0 }
+      )
+      console.log('Session store TTL index created')
+      this.initialized = true
+    } catch (error) {
+      console.error('Session store initialization error:', error)
+    }
+  }
+
+  // Fastify session store interface methods
+  async get(sessionId, callback) {
+    try {
+      const session = await this.collection.findOne({ 
+        _id: sessionId,
+        expires: { $gt: new Date() } // Only get non-expired sessions
+      })
+      
+      if (session && session.data) {
+        console.log('Session retrieved:', { sessionId, hasData: true })
+        if (callback) callback(null, session.data)
+        return session.data
+      }
+      
+      // If session expired or doesn't exist, clean it up
+      if (session) {
+        await this.collection.deleteOne({ _id: sessionId })
+        console.log('Expired session cleaned up:', { sessionId })
+      }
+      
+      if (callback) callback(null, null)
+      return null
     } catch (error) {
       console.error('Session get error:', error)
+      if (callback) callback(error, null)
       return null
     }
   }
 
-  async set(sessionId, session) {
+  async set(sessionId, session, callback) {
     try {
-      console.log('Setting session:', { sessionId, hasData: !!session })
+      if (!this.initialized) {
+        await this.initialize()
+      }
+      
+      const expiresIn = session.cookie?.maxAge || 86400000 // Default 24 hours
+      const expiresAt = new Date(Date.now() + expiresIn)
+      
+      console.log('Setting session:', { 
+        sessionId, 
+        hasData: !!session,
+        expiresAt: expiresAt.toISOString(),
+        maxAge: expiresIn
+      })
+      
       const result = await this.collection.replaceOne(
         { _id: sessionId },
         {
           _id: sessionId,
           data: session,
-          expires: new Date(Date.now() + (session.cookie?.maxAge || 86400000))
+          expires: expiresAt,
+          createdAt: new Date(),
+          updatedAt: new Date()
         },
         { upsert: true }
       )
-      console.log('Session set result:', { sessionId, modified: result.modifiedCount, upserted: result.upsertedCount })
+      
+      console.log('Session set result:', { 
+        sessionId, 
+        modified: result.modifiedCount, 
+        upserted: result.upsertedCount 
+      })
+      
+      if (callback) callback(null)
     } catch (error) {
       console.error('Session set error:', error)
-      throw error // Re-throw to let fastify handle it
+      if (callback) callback(error)
+      else throw error
     }
   }
 
-  async destroy(sessionId) {
+  async destroy(sessionId, callback) {
     try {
-      await this.collection.deleteOne({ _id: sessionId })
+      const result = await this.collection.deleteOne({ _id: sessionId })
+      console.log('Session destroyed:', { sessionId, deleted: result.deletedCount })
+      if (callback) callback(null)
     } catch (error) {
       console.error('Session destroy error:', error)
+      if (callback) callback(error)
+    }
+  }
+
+  // Optional: Get session statistics
+  async getStats() {
+    try {
+      const totalSessions = await this.collection.countDocuments({})
+      const activeSessions = await this.collection.countDocuments({
+        expires: { $gt: new Date() }
+      })
+      return {
+        total: totalSessions,
+        active: activeSessions,
+        expired: totalSessions - activeSessions
+      }
+    } catch (error) {
+      console.error('Session stats error:', error)
+      return { total: 0, active: 0, expired: 0 }
+    }
+  }
+
+  // Optional: Manual cleanup of expired sessions
+  async cleanup() {
+    try {
+      const result = await this.collection.deleteMany({
+        expires: { $lt: new Date() }
+      })
+      console.log(`Cleaned up ${result.deletedCount} expired sessions`)
+      return result.deletedCount
+    } catch (error) {
+      console.error('Session cleanup error:', error)
+      return 0
     }
   }
 }
@@ -98,23 +193,39 @@ let sessionStore
 
 // Register main plugin that contains all routes
 fastify.register(async function (fastify) {
-  // Initialize session store (using in-memory for now to avoid MongoDB session issues)
+  // Initialize MongoDB session store
   sessionStore = new MongoSessionStore(db)
   
-  // Register session plugin with in-memory store for development
-  await fastify.register(require('@fastify/session'), {
-    secret: process.env.SESSION_SECRET || 'fallback-secret-key',
-    // Use default in-memory store instead of MongoDB store for now
-    cookie: {
-      secure: false, // Set to true in production with HTTPS
-      httpOnly: true,
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours default
-      sameSite: 'lax'
-    },
-    saveUninitialized: false
-  })
-
-  console.log('Session store initialized')
+  try {
+    // Try to register session plugin with MongoDB store
+    await fastify.register(require('@fastify/session'), {
+      secret: process.env.SESSION_SECRET || 'fallback-secret-key',
+      store: sessionStore, // Use MongoDB session store
+      cookie: {
+        secure: false, // Set to true in production with HTTPS
+        httpOnly: true,
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours default
+        sameSite: 'lax'
+      },
+      saveUninitialized: false
+    })
+    console.log('MongoDB session store initialized successfully')
+  } catch (error) {
+    console.warn('MongoDB session store failed, falling back to in-memory sessions:', error.message)
+    // Fallback to in-memory sessions
+    await fastify.register(require('@fastify/session'), {
+      secret: process.env.SESSION_SECRET || 'fallback-secret-key',
+      cookie: {
+        secure: false, // Set to true in production with HTTPS
+        httpOnly: true,
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours default
+        sameSite: 'lax'
+      },
+      saveUninitialized: false
+    })
+    sessionStore = null // Disable custom session store
+    console.log('In-memory session store initialized as fallback')
+  }
 
   // Auth middleware
   function requireAuth(request, reply, done) {
@@ -390,23 +501,255 @@ fastify.register(async function (fastify) {
       }
     })
 
-    // Weather API (placeholder)
-    fastify.get('/api/weather', async (request, reply) => {
+    // GitHub Analysis API
+    const GitHubAnalyzer = require('./services/githubAnalyzer')
+    const githubAnalyzer = new GitHubAnalyzer()
+
+    // Get saved analysis reports
+    fastify.get('/api/github/reports', async (request, reply) => {
       try {
+        const collection = db.collection('github_reports')
+        const reports = await collection.find({}).sort({ generatedAt: -1 }).limit(20).toArray()
+        
         return {
-          location: 'Belgrade, RS',
-          temperature: Math.round(Math.random() * 30 + 5),
-          description: 'Partly cloudy',
-          feelsLike: Math.round(Math.random() * 30 + 5),
-          humidity: Math.round(Math.random() * 40 + 40),
-          windSpeed: Math.round(Math.random() * 20 + 5),
-          icon: 'fa-cloud-sun',
-          timestamp: new Date().toISOString()
+          reports: reports.map(report => ({
+            id: report._id,
+            repository: report.metadata?.repository,
+            period: report.metadata?.analyzedPeriod,
+            generatedAt: report.metadata?.generatedAt,
+            summary: {
+              totalCommits: report.summary?.totalCommits || 0,
+              totalPrs: report.summary?.totalPrs || 0,
+              activeContributors: report.summary?.activeContributors || 0
+            }
+          }))
         }
       } catch (error) {
-        reply.code(500).send({ error: 'Failed to get weather data' })
+        console.error('Error fetching reports:', error)
+        reply.code(500).send({ error: 'Failed to fetch reports' })
       }
     })
+
+    // Get specific analysis report by ID
+    fastify.get('/api/github/reports/:id', async (request, reply) => {
+      try {
+        const { id } = request.params
+        const { ObjectId } = require('mongodb')
+        
+        if (!ObjectId.isValid(id)) {
+          return reply.code(400).send({ error: 'Invalid report ID' })
+        }
+
+        const collection = db.collection('github_reports')
+        const report = await collection.findOne({ _id: new ObjectId(id) })
+        
+        if (!report) {
+          return reply.code(404).send({ error: 'Report not found' })
+        }
+
+        return report
+      } catch (error) {
+        console.error('Error fetching report:', error)
+        reply.code(500).send({ error: 'Failed to fetch report' })
+      }
+    })
+
+    // Generate new analysis report (user-triggered)
+    fastify.post('/api/github/reports/generate', async (request, reply) => {
+      try {
+        let authenticatedUser = null;
+        
+        // Check for session authentication first
+        if (request.session?.authenticated) {
+          authenticatedUser = request.session.username;
+        } else {
+          // Check for Basic Auth header
+          const authHeader = request.headers.authorization;
+          if (!authHeader || !authHeader.startsWith('Basic ')) {
+            reply.code(401).send({ error: 'Unauthorized - Basic Auth required' });
+            return;
+          }
+
+          // Decode basic auth header
+          const base64Credentials = authHeader.split(' ')[1];
+          const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii');
+          const [username, password] = credentials.split(':');
+
+          // Check against environment variables
+          const validUsername = process.env.BASIC_AUTH_USERNAME || process.env.ADMIN_USERNAME;
+          const validPassword = process.env.BASIC_AUTH_PASSWORD;
+          
+          if (!validUsername || !validPassword) {
+            reply.code(503).send({ 
+              error: 'Basic Auth not configured', 
+              message: 'Please set BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD environment variables' 
+            });
+            return;
+          }
+          
+          if (username !== validUsername || password !== validPassword) {
+            reply.code(401).send({ error: 'Invalid credentials' });
+            return;
+          }
+          
+          authenticatedUser = username;
+        }
+        
+        const { owner, repo, days } = request.body
+        const repoOwner = owner || process.env.GITHUB_OWNER || 'everli'
+        const repoName = repo || process.env.GITHUB_REPO || 'ev3rli'
+        const analysisDays = parseInt(days) || 7
+
+        if (!process.env.GITHUB_TOKEN || !process.env.OPENAI_API_KEY) {
+          return reply.code(503).send({
+            error: 'GitHub and OpenAI API credentials not configured',
+            message: 'Please set GITHUB_TOKEN and OPENAI_API_KEY environment variables'
+          })
+        }
+
+        // Generate the analysis
+        const analysis = await githubAnalyzer.generateRepositoryReport(repoOwner, repoName, analysisDays)
+        
+        // Save to database
+        const collection = db.collection('github_reports')
+        const reportDoc = {
+          ...analysis,
+          createdBy: authenticatedUser,
+          createdAt: new Date().toISOString()
+        }
+        
+        const result = await collection.insertOne(reportDoc)
+        
+        return {
+          message: 'Report generated and saved successfully',
+          reportId: result.insertedId,
+          report: analysis
+        }
+      } catch (error) {
+        console.error('GitHub analysis generation error:', error)
+        reply.code(500).send({ 
+          error: 'Failed to generate analysis report', 
+          message: error.message 
+        })
+      }
+    })
+
+    // Delete analysis report
+    fastify.delete('/api/github/reports/:id', async (request, reply) => {
+      try {
+        const { id } = request.params
+        const { ObjectId } = require('mongodb')
+        
+        if (!ObjectId.isValid(id)) {
+          return reply.code(400).send({ error: 'Invalid report ID' })
+        }
+
+        const collection = db.collection('github_reports')
+        const result = await collection.deleteOne({ _id: new ObjectId(id) })
+        
+        if (result.deletedCount === 0) {
+          return reply.code(404).send({ error: 'Report not found' })
+        }
+
+        return { message: 'Report deleted successfully' }
+      } catch (error) {
+        console.error('Error deleting report:', error)
+        reply.code(500).send({ error: 'Failed to delete report' })
+      }
+    })
+
+    // Get quick repository status
+    fastify.get('/api/github/status', async (request, reply) => {
+      try {
+        const { owner, repo } = request.query
+        const repoOwner = owner || process.env.GITHUB_OWNER || 'everli'
+        const repoName = repo || process.env.GITHUB_REPO || 'ev3rli'
+
+        if (!process.env.GITHUB_TOKEN) {
+          return reply.code(503).send({
+            error: 'GitHub API credentials not configured',
+            message: 'Please set GITHUB_TOKEN environment variable'
+          })
+        }
+
+        const status = await githubAnalyzer.getQuickStatus(repoOwner, repoName)
+        return status
+      } catch (error) {
+        console.error('GitHub status error:', error)
+        reply.code(500).send({ 
+          error: 'Failed to get repository status', 
+          message: error.message 
+        })
+      }
+    })
+
+    // Get recent commits only
+    fastify.get('/api/github/commits', async (request, reply) => {
+      try {
+        const { owner, repo, days } = request.query
+        const repoOwner = owner || process.env.GITHUB_OWNER || 'everli'
+        const repoName = repo || process.env.GITHUB_REPO || 'ev3rli'
+        const analysisDays = parseInt(days) || 7
+
+        if (!process.env.GITHUB_TOKEN) {
+          return reply.code(503).send({
+            error: 'GitHub API credentials not configured',
+            message: 'Please set GITHUB_TOKEN environment variable'
+          })
+        }
+
+        const commits = await githubAnalyzer.fetchRecentCommits(repoOwner, repoName, analysisDays)
+        return { 
+          commits,
+          metadata: {
+            repository: `${repoOwner}/${repoName}`,
+            period: `${analysisDays} days`,
+            count: commits.length
+          }
+        }
+      } catch (error) {
+        console.error('GitHub commits error:', error)
+        reply.code(500).send({ 
+          error: 'Failed to fetch commits', 
+          message: error.message 
+        })
+      }
+    })
+
+    // Session management endpoints (admin only)
+    fastify.get('/api/sessions/stats', async (request, reply) => {
+      try {
+        if (sessionStore) {
+          const stats = await sessionStore.getStats()
+          return {
+            ...stats,
+            timestamp: new Date().toISOString()
+          }
+        }
+        return { message: 'Session store not available' }
+      } catch (error) {
+        console.error('Session stats error:', error)
+        reply.code(500).send({ error: 'Failed to get session stats' })
+      }
+    })
+
+    fastify.post('/api/sessions/cleanup', async (request, reply) => {
+      try {
+        if (sessionStore) {
+          const cleaned = await sessionStore.cleanup()
+          return {
+            message: 'Session cleanup completed',
+            cleanedSessions: cleaned,
+            timestamp: new Date().toISOString()
+          }
+        }
+        return { message: 'Session store not available' }
+      } catch (error) {
+        console.error('Session cleanup error:', error)
+        reply.code(500).send({ error: 'Failed to cleanup sessions' })
+      }
+    })
+
 
     // Events/Calendar API
     fastify.get('/api/events', async (request, reply) => {

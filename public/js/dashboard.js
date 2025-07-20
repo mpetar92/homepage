@@ -1,12 +1,12 @@
 // Dashboard initialization
 document.addEventListener('DOMContentLoaded', function() {
     initializeDashboard();
-    loadWeather();
     loadSystemInfo();
     loadTasks();
     loadNotes();
-    initializeCalendar();
+    initializeAgenda();
     setupSearch();
+    loadGitHubReports();
     
     // Update time every second
     setInterval(updateTime, 1000);
@@ -15,6 +15,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Auto-save notes
     document.getElementById('notes-content').addEventListener('input', debounce(saveNotes, 1000));
 });
+
+// Navigation functions
+function goToGitHubAnalyses() {
+    window.location.href = '/github-analyses.html';
+}
 
 function initializeDashboard() {
     updateGreeting();
@@ -58,133 +63,193 @@ function updateCurrentDate() {
     document.getElementById('current-date').textContent = dateString;
 }
 
-// Weather functionality
-async function loadWeather() {
-    try {
-        // First get user's location
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(async (position) => {
-                const lat = position.coords.latitude;
-                const lon = position.coords.longitude;
-                
-                try {
-                    // Using OpenWeatherMap API (you'll need to get a free API key)
-                    // For demo, using mock data
-                    displayWeather({
-                        location: 'Belgrade, RS',
-                        temperature: Math.round(Math.random() * 30 + 5),
-                        description: 'partly cloudy',
-                        feelsLike: Math.round(Math.random() * 30 + 5),
-                        humidity: Math.round(Math.random() * 40 + 40),
-                        windSpeed: Math.round(Math.random() * 20 + 5),
-                        icon: 'fa-cloud-sun'
-                    });
-                } catch (error) {
-                    displayWeatherError();
-                }
-            }, () => {
-                // Location denied, use default
-                displayWeather({
-                    location: 'Location unavailable',
-                    temperature: '--',
-                    description: 'Enable location for weather',
-                    feelsLike: '--',
-                    humidity: '--',
-                    windSpeed: '--',
-                    icon: 'fa-cloud'
-                });
-            });
-        } else {
-            displayWeatherError();
-        }
-    } catch (error) {
-        displayWeatherError();
-    }
+
+// Today's Agenda functionality
+let todayEvents = [];
+
+function initializeAgenda() {
+    loadTodaysEvents();
+    displayTodaysDate();
 }
 
-function displayWeather(weather) {
-    document.getElementById('temperature').textContent = weather.temperature + '°';
-    document.getElementById('location').textContent = weather.location;
-    document.getElementById('weather-description').textContent = weather.description;
-    document.getElementById('feels-like').textContent = weather.feelsLike + '°';
-    document.getElementById('humidity').textContent = weather.humidity + '%';
-    document.getElementById('wind-speed').textContent = weather.windSpeed + ' km/h';
-    
-    const iconElement = document.getElementById('weather-icon').querySelector('i');
-    iconElement.className = `fas ${weather.icon}`;
-}
-
-function displayWeatherError() {
-    document.getElementById('weather-content').innerHTML = `
-        <div class="text-center text-muted">
-            <i class="fas fa-exclamation-triangle"></i>
-            <p>Weather unavailable</p>
-        </div>
-    `;
-}
-
-// Calendar functionality
-let currentMonth = new Date().getMonth();
-let currentYear = new Date().getFullYear();
-
-function initializeCalendar() {
-    generateCalendar();
-}
-
-function generateCalendar() {
-    const monthNames = ["January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December"];
-    
-    document.getElementById('calendar-month').textContent = `${monthNames[currentMonth]} ${currentYear}`;
-    
-    const firstDay = new Date(currentYear, currentMonth, 1).getDay();
-    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    const daysInPrevMonth = new Date(currentYear, currentMonth, 0).getDate();
-    
-    let calendarHTML = '';
-    
-    // Day headers
-    const dayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    dayHeaders.forEach(day => {
-        calendarHTML += `<div class="calendar-day calendar-header">${day}</div>`;
+function displayTodaysDate() {
+    const today = new Date();
+    const dateString = today.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
     });
     
-    // Previous month's days
-    for (let i = firstDay - 1; i >= 0; i--) {
-        const day = daysInPrevMonth - i;
-        calendarHTML += `<div class="calendar-day other-month">${day}</div>`;
-    }
-    
-    // Current month's days
-    const today = new Date();
-    for (let day = 1; day <= daysInMonth; day++) {
-        const isToday = (currentYear === today.getFullYear() && 
-                        currentMonth === today.getMonth() && 
-                        day === today.getDate());
-        const todayClass = isToday ? 'today' : '';
-        calendarHTML += `<div class="calendar-day ${todayClass}">${day}</div>`;
-    }
-    
-    // Next month's days
-    const totalCells = calendarHTML.split('calendar-day').length - 1;
-    const remainingCells = 42 - totalCells; // 6 rows × 7 days
-    for (let day = 1; day <= remainingCells; day++) {
-        calendarHTML += `<div class="calendar-day other-month">${day}</div>`;
-    }
-    
-    document.getElementById('calendar').innerHTML = calendarHTML;
+    document.getElementById('agenda-date').textContent = dateString;
 }
 
-function changeMonth(direction) {
-    currentMonth += direction;
-    if (currentMonth < 0) {
-        currentMonth = 11;
-        currentYear--;
-    } else if (currentMonth > 11) {
-        currentMonth = 0;
-        currentYear++;
+async function loadTodaysEvents() {
+    try {
+        const response = await fetch('/api/events/today');
+        if (response.ok) {
+            const data = await response.json();
+            todayEvents = data.events || [];
+        } else {
+            // Fallback to localStorage
+            const storedEvents = JSON.parse(localStorage.getItem('events') || '[]');
+            const today = new Date().toDateString();
+            todayEvents = storedEvents.filter(event => {
+                const eventDate = new Date(event.date).toDateString();
+                return eventDate === today;
+            });
+        }
+    } catch (error) {
+        // Fallback to localStorage
+        const storedEvents = JSON.parse(localStorage.getItem('events') || '[]');
+        const today = new Date().toDateString();
+        todayEvents = storedEvents.filter(event => {
+            const eventDate = new Date(event.date).toDateString();
+            return eventDate === today;
+        });
     }
-    generateCalendar();
+    renderTodaysAgenda();
+}
+
+function renderTodaysAgenda() {
+    const agendaContainer = document.getElementById('agenda-events');
+    
+    if (todayEvents.length === 0) {
+        agendaContainer.innerHTML = '<p class="no-events">No events scheduled for today</p>';
+        return;
+    }
+    
+    // Sort events by time
+    const sortedEvents = todayEvents.sort((a, b) => {
+        const timeA = a.time ? new Date(`2000-01-01 ${a.time}`) : new Date(0);
+        const timeB = b.time ? new Date(`2000-01-01 ${b.time}`) : new Date(0);
+        return timeA - timeB;
+    });
+    
+    agendaContainer.innerHTML = sortedEvents.map((event, index) => {
+        const timeDisplay = event.time ? formatTime(event.time) : 'All day';
+        return `
+            <div class="agenda-event">
+                <div class="event-time">${timeDisplay}</div>
+                <div class="event-details">
+                    <div class="event-title">${event.title}</div>
+                    ${event.description ? `<div class="event-description">${event.description}</div>` : ''}
+                </div>
+                <button class="event-delete" onclick="deleteEvent(${index})">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        `;
+    }).join('');
+}
+
+function formatTime(timeString) {
+    try {
+        const [hours, minutes] = timeString.split(':');
+        const date = new Date();
+        date.setHours(parseInt(hours), parseInt(minutes));
+        return date.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+        });
+    } catch (error) {
+        return timeString; // Return original if parsing fails
+    }
+}
+
+function showAddEvent() {
+    document.getElementById('event-input').style.display = 'block';
+    document.getElementById('new-event-title').focus();
+}
+
+function hideAddEvent() {
+    document.getElementById('event-input').style.display = 'none';
+    document.getElementById('new-event-title').value = '';
+    document.getElementById('new-event-time').value = '';
+    document.getElementById('new-event-description').value = '';
+}
+
+async function addEvent() {
+    const title = document.getElementById('new-event-title').value.trim();
+    const time = document.getElementById('new-event-time').value;
+    const description = document.getElementById('new-event-description').value.trim();
+    
+    if (!title) return;
+    
+    const newEvent = {
+        title: title,
+        time: time,
+        description: description,
+        date: new Date().toISOString().split('T')[0], // Today's date in YYYY-MM-DD format
+        created: new Date().toISOString()
+    };
+    
+    try {
+        const response = await fetch('/api/events', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newEvent)
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            todayEvents.push({ ...newEvent, id: result.id });
+        } else {
+            // Fallback to localStorage
+            const storedEvents = JSON.parse(localStorage.getItem('events') || '[]');
+            storedEvents.push(newEvent);
+            localStorage.setItem('events', JSON.stringify(storedEvents));
+            todayEvents.push(newEvent);
+        }
+    } catch (error) {
+        // Fallback to localStorage
+        const storedEvents = JSON.parse(localStorage.getItem('events') || '[]');
+        storedEvents.push(newEvent);
+        localStorage.setItem('events', JSON.stringify(storedEvents));
+        todayEvents.push(newEvent);
+    }
+    
+    renderTodaysAgenda();
+    hideAddEvent();
+}
+
+function deleteEvent(index) {
+    const eventToDelete = todayEvents[index];
+    
+    // Remove from today's events array
+    todayEvents.splice(index, 1);
+    
+    // Update storage
+    saveEvents();
+    renderTodaysAgenda();
+}
+
+async function saveEvents() {
+    try {
+        await fetch('/api/events', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ events: todayEvents })
+        });
+    } catch (error) {
+        // Update localStorage as fallback
+        const storedEvents = JSON.parse(localStorage.getItem('events') || '[]');
+        const today = new Date().toDateString();
+        
+        // Remove today's events from stored events and add the current ones
+        const otherDayEvents = storedEvents.filter(event => {
+            const eventDate = new Date(event.date).toDateString();
+            return eventDate !== today;
+        });
+        
+        localStorage.setItem('events', JSON.stringify([...otherDayEvents, ...todayEvents]));
+    }
+}
+
+function refreshAgenda() {
+    loadTodaysEvents();
+    displayTodaysDate();
 }
 
 // Tasks functionality
@@ -301,12 +366,12 @@ async function saveTasks() {
 
 // Quick Links functionality
 function showAddLink() {
-    document.getElementById('link-input').style.display = 'block';
+    document.getElementById('link-input-modal').style.display = 'block';
     document.getElementById('new-link-title').focus();
 }
 
 function hideAddLink() {
-    document.getElementById('link-input').style.display = 'none';
+    document.getElementById('link-input-modal').style.display = 'none';
     document.getElementById('new-link-title').value = '';
     document.getElementById('new-link-url').value = '';
 }
@@ -317,17 +382,19 @@ function addLink() {
     
     if (!title || !url) return;
     
-    const linksGrid = document.getElementById('links-grid');
+    // Add to header quick links
+    const quickLinksContainer = document.getElementById('header-quick-links');
+    const addButton = quickLinksContainer.querySelector('.add-link');
+    
     const linkElement = document.createElement('a');
-    linkElement.className = 'link-item';
+    linkElement.className = 'quick-link';
     linkElement.href = url;
     linkElement.target = '_blank';
-    linkElement.innerHTML = `
-        <i class="fas fa-link"></i>
-        <span>${title}</span>
-    `;
+    linkElement.title = title;
+    linkElement.innerHTML = `<i class="fas fa-link"></i>`;
     
-    linksGrid.appendChild(linkElement);
+    // Insert before the add button
+    quickLinksContainer.insertBefore(linkElement, addButton);
     hideAddLink();
 }
 
@@ -430,6 +497,8 @@ document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         hideAddTask();
         hideAddLink();
+        hideAddEvent();
+        hideNewReportDialog();
         document.getElementById('search-input').blur();
     }
 });
@@ -489,3 +558,250 @@ async function checkAuth() {
 
 // Initialize auth check
 checkAuth();
+// GitHub Analysis functionality
+async function loadGitHubReports() {
+    const reportSelector = document.getElementById('report-selector');
+    const githubContent = document.getElementById('github-content');
+
+    try {
+        // Fetch existing reports
+        const response = await fetch('/api/github/reports');
+        if (!response.ok) {
+            throw new Error('Failed to load reports');
+        }
+
+        const data = await response.json();
+        const reports = data.reports;
+
+        if (reports.length > 0) {
+            reportSelector.style.display = 'block';
+            
+            // Sort reports by generation date (newest first)
+            const sortedReports = reports.sort((a, b) => new Date(b.generatedAt) - new Date(a.generatedAt));
+            const latestReport = sortedReports[0];
+            
+            reportSelector.innerHTML = '<option value="">Select a report...</option>' +
+                sortedReports.map(report => `<option value="${report.id}"${report.id === latestReport.id ? ' selected' : ''}>${report.repository} - ${report.period} - ${new Date(report.generatedAt).toLocaleString()}</option>`).join('');
+            
+            // Automatically load the latest report
+            loadReport(latestReport.id);
+        } else {
+            reportSelector.style.display = 'none';
+            githubContent.innerHTML = `
+                <div class="github-initial-state">
+                    <div class="initial-message">
+                        <i class="fab fa-github" style="font-size: 3rem; color: var(--text-muted); margin-bottom: 1rem;"></i>
+                        <h4>GitHub Repository Analysis</h4>
+                        <p>Generate AI-powered reports to analyze repository activity, commits, and development trends.</p>
+                        <button class="btn-primary" onclick="showNewReportDialog()">
+                            <i class="fas fa-plus"></i> Generate Your First Report
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error loading reports:', error);
+        githubContent.innerHTML = `
+            <div class="github-error">
+                <i class="fas fa-exclamation-triangle"></i>
+                <h4>GitHub Analysis Unavailable</h4>
+                <p>${error.message}</p>
+                <p class="error-help">Configure GITHUB_TOKEN and OPENAI_API_KEY environment variables to enable this feature.</p>
+            </div>
+        `;
+    }
+}
+
+function showNewReportDialog() {
+    document.getElementById('new-report-modal').style.display = 'block';
+}
+
+function hideNewReportDialog() {
+    document.getElementById('new-report-modal').style.display = 'none';
+}
+
+async function generateNewReport() {
+    const githubContent = document.getElementById('github-content');
+    const owner = document.getElementById('report-owner').value;
+    const repo = document.getElementById('report-repo').value;
+    const days = document.getElementById('report-days').value;
+
+    if (!owner || !repo) {
+        alert('Please fill in both the repository owner and name.');
+        return;
+    }
+
+    hideNewReportDialog();
+
+    try {
+        githubContent.innerHTML = `
+            <div class="github-loading">
+                <i class="fas fa-spinner fa-spin"></i>
+                <span>Generating GitHub analysis report...</span>
+            </div>
+        `;
+
+        const response = await fetch('/api/github/reports/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ owner, repo, days })
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to generate report');
+        }
+
+        const result = await response.json();
+        alert('Report generated successfully!');
+        loadGitHubReports(); // Reload reports to include the new one
+    } catch (error) {
+        console.error('Error generating report:', error);
+        alert(`Error: ${error.message}`);
+        githubContent.innerHTML = `
+            <div class="github-error">
+                <i class="fas fa-exclamation-triangle"></i>
+                <h4>GitHub Analysis Unavailable</h4>
+                <p>${error.message}</p>
+                <p class="error-help">Configure GITHUB_TOKEN and OPENAI_API_KEY environment variables to enable this feature.</p>
+            </div>
+        `;
+    }
+}
+
+async function loadReport(reportId) {
+    const githubContent = document.getElementById('github-content');
+    
+    // Show loading state
+    githubContent.innerHTML = `
+        <div class="github-loading">
+            <i class="fas fa-spinner fa-spin"></i>
+            <span>Loading report...</span>
+        </div>
+    `;
+    
+    try {
+        const response = await fetch(`/api/github/reports/${reportId}`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch report');
+        }
+
+        const reportData = await response.json();
+        displayGitHubAnalysis(reportData);
+    } catch (error) {
+        console.error('Error fetching report:', error);
+        githubContent.innerHTML = `
+            <div class="github-error">
+                <i class="fas fa-exclamation-triangle"></i>
+                <h4>Failed to Load Report</h4>
+                <p>Error: ${error.message}</p>
+            </div>
+        `;
+    }
+}
+
+async function onReportSelectionChange() {
+    const reportSelector = document.getElementById('report-selector');
+    const selectedReportId = reportSelector.value;
+    if (!selectedReportId) return;
+    
+    loadReport(selectedReportId);
+}
+
+function displayGitHubAnalysis(data) {
+    const githubContent = document.getElementById('github-content');
+    const { summary, aiSummary, rawData, metadata } = data;
+    
+    githubContent.innerHTML = `
+        <div class="github-analysis">
+            <!-- Summary Stats -->
+            <div class="github-stats">
+                <div class="stat-item">
+                    <i class="fas fa-code-branch"></i>
+                    <span class="stat-number">${summary.totalCommits}</span>
+                    <span class="stat-label">Commits</span>
+                </div>
+                <div class="stat-item">
+                    <i class="fas fa-code-merge"></i>
+                    <span class="stat-number">${summary.totalPrs}</span>
+                    <span class="stat-label">PRs</span>
+                </div>
+                <div class="stat-item">
+                    <i class="fas fa-users"></i>
+                    <span class="stat-number">${summary.activeContributors}</span>
+                    <span class="stat-label">Contributors</span>
+                </div>
+            </div>
+            
+            <!-- AI Summary -->
+            <div class="github-ai-summary">
+                <h4><i class="fas fa-brain"></i> AI Analysis</h4>
+                <div class="ai-content">
+                    ${formatMarkdown(aiSummary)}
+                </div>
+            </div>
+            
+            <!-- Recent Activity -->
+            <div class="github-activity">
+                <div class="activity-section">
+                    <h4><i class="fas fa-history"></i> Recent Commits</h4>
+                    <div class="commits-list">
+                        ${rawData.commits.slice(0, 5).map(commit => `
+                            <div class="commit-item">
+                                <span class="commit-sha">${commit.sha}</span>
+                                <span class="commit-message">${commit.message.split('\n')[0]}</span>
+                                <span class="commit-author">${commit.author}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                
+                <div class="activity-section">
+                    <h4><i class="fas fa-users"></i> Top Contributors</h4>
+                    <div class="contributors-list">
+                        ${rawData.contributors.slice(0, 5).map(contributor => `
+                            <div class="contributor-item">
+                                <span class="contributor-name">${contributor.author}</span>
+                                <span class="contributor-commits">${contributor.commitCount} commits</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="github-footer">
+                <small>Repository: ${metadata.repository} • Period: ${metadata.analyzedPeriod} • Generated: ${new Date(metadata.generatedAt).toLocaleString()}</small>
+            </div>
+        </div>
+    `;
+}
+
+function displayGitHubError(message) {
+    const githubContent = document.getElementById('github-content');
+    githubContent.innerHTML = `
+        <div class="github-error">
+            <i class="fas fa-exclamation-triangle"></i>
+            <h4>GitHub Analysis Unavailable</h4>
+            <p>${message}</p>
+            <p class="error-help">Configure GITHUB_TOKEN and OPENAI_API_KEY environment variables to enable this feature.</p>
+        </div>
+    `;
+}
+
+function formatMarkdown(text) {
+    if (!text) return '';
+    
+    // Simple markdown formatting
+    return text
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/^## (.*$)/gim, '<h3>$1</h3>')
+        .replace(/^### (.*$)/gim, '<h4>$1</h4>')
+        .replace(/^- (.*$)/gim, '<li>$1</li>')
+        .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
+        .replace(/<\/ul>\s*<ul>/g, '')
+        .replace(/\n\n/g, '</p><p>')
+        .replace(/^(?!<[h3-6]|<ul|<\/p><p>)(.*$)/gim, '<p>$1</p>')
+        .replace(/^<p><\/p>$/gm, '')
+        .trim();
+}

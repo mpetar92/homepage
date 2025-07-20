@@ -1,0 +1,703 @@
+/* GitHub Analyses Page Styles */
+
+/* Header */
+.analyses-header {
+    background: var(--background-primary);
+    border-bottom: 1px solid var(--border-color);
+    padding: 1rem 0;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.header-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+}
+
+.back-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.back-btn:hover {
+    background: var(--background-secondary);
+    border-color: var(--primary-color);
+}
+
+.analyses-header h1 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.analyses-header h1 i {
+    color: var(--primary-color);
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.refresh-btn {
+    padding: 0.5rem;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 2.5rem;
+    height: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.refresh-btn:hover {
+    background: var(--background-secondary);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.refresh-btn.loading i {
+    animation: spin 1s linear infinite;
+}
+
+/* Main Layout */
+.analyses-main {
+    flex: 1;
+    padding: 2rem 0;
+}
+
+.analyses-layout {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 2rem;
+    min-height: calc(100vh - 200px);
+}
+
+/* Sidebar */
+.analyses-sidebar {
+    background: var(--background-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    height: fit-content;
+    position: sticky;
+    top: 6rem;
+}
+
+.sidebar-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.sidebar-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.report-count {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    background: var(--background-secondary);
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+}
+
+.sidebar-content {
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.reports-list {
+    padding: 1rem;
+}
+
+.report-item {
+    padding: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    margin-bottom: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: var(--background-secondary);
+}
+
+.report-item:hover {
+    border-color: var(--primary-color);
+    transform: translateY(-1px);
+}
+
+.report-item.active {
+    border-color: var(--primary-color);
+    background: var(--primary-color-light);
+}
+
+.report-item .repo-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.report-item .repo-name i {
+    color: var(--primary-color);
+}
+
+.report-item .report-meta {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.report-item .report-date {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.report-item .report-period {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.report-summary {
+    display: flex;
+    justify-content: left;
+    align-items: center;
+    padding-top: 0.25rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.summary-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    padding: 0.25rem;
+}
+
+.summary-item i {
+    color: var(--primary-color);
+    font-size: 0.875rem;
+}
+
+.summary-item span {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+}
+
+.empty-reports {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-muted);
+}
+
+.empty-reports i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    display: block;
+}
+
+/* Main Content */
+.analyses-content {
+    background: var(--background-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    min-height: 70vh;
+}
+
+.content-area {
+    padding: 2rem;
+    height: 100%;
+}
+
+/* Welcome State */
+.welcome-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 50vh;
+}
+
+.welcome-message {
+    text-align: center;
+    max-width: 500px;
+}
+
+.welcome-message h2 {
+    color: var(--text-primary);
+    margin: 0 0 1rem 0;
+    font-size: 2rem;
+    font-weight: 600;
+}
+
+.welcome-message p {
+    color: var(--text-muted);
+    margin: 0 0 2rem 0;
+    font-size: 1.125rem;
+    line-height: 1.6;
+}
+
+.welcome-actions {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+}
+
+/* Report Content */
+.report-header {
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.report-title {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0 0 1rem 0;
+}
+
+.report-title h2 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.report-title .repo-link {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-size: 0.875rem;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--primary-color);
+    border-radius: 0.25rem;
+    transition: all 0.2s ease;
+}
+
+.report-title .repo-link:hover {
+    background: var(--primary-color);
+    color: white;
+}
+
+.report-metadata {
+    display: flex;
+    gap: 2rem;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+.report-metadata div {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.report-body {
+    line-height: 1.7;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.report-body h3 {
+    color: var(--text-primary);
+    margin: 2rem 0 1rem 0;
+    font-weight: 600;
+    border-bottom: 2px solid var(--primary-color);
+    padding-bottom: 0.5rem;
+}
+
+.report-body h4 {
+    color: var(--text-primary);
+    margin: 1.5rem 0 0.75rem 0;
+    font-weight: 600;
+}
+
+.report-body p {
+    color: var(--text-secondary);
+    margin: 0 0 1rem 0;
+}
+
+.report-body ul {
+    margin: 0 0 1rem 0;
+    padding-left: 1.5rem;
+}
+
+.report-body li {
+    color: var(--text-secondary);
+    margin: 0.5rem 0;
+}
+
+.report-body strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.report-body code {
+    background: var(--background-secondary);
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 0.875em;
+}
+
+.report-body pre {
+    background: var(--background-secondary);
+    padding: 1rem;
+    border-radius: 0.5rem;
+    overflow-x: auto;
+    margin: 1rem 0;
+}
+
+.report-body pre code {
+    background: none;
+    padding: 0;
+}
+
+/* AI Summary Section */
+.report-body h3:first-of-type {
+    color: var(--primary-color);
+    border-bottom: 3px solid var(--primary-color);
+    padding-bottom: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+/* Enhanced List Styling */
+.report-body ul li {
+    margin-bottom: 0.75rem;
+    padding: 0.5rem;
+    background: var(--background-secondary);
+    border-radius: 0.25rem;
+    border-left: 3px solid var(--primary-color);
+}
+
+.report-body ul li a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.report-body ul li a:hover {
+    text-decoration: underline;
+}
+
+/* Section Spacing */
+.report-body h4 {
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+    font-size: 1.1rem;
+}
+
+/* AI Summary Formatting */
+.report-body div h3 {
+    color: var(--primary-color);
+    font-size: 1.1rem;
+    margin: 1.5rem 0 0.75rem 0;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.25rem;
+}
+
+.report-body div br {
+    line-height: 1.8;
+}
+
+.report-body div strong {
+    color: var(--text-primary);
+    font-weight: 700;
+}
+
+.report-body div em {
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+/* Collapsible Sections */
+.collapsible-section {
+    margin-bottom: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.collapsible-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    background: var(--background-secondary);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.collapsible-header:hover {
+    background: var(--primary-color);
+    color: white;
+}
+
+.collapsible-header.active {
+    background: var(--primary-color);
+    color: white;
+}
+
+.collapsible-header .section-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.collapsible-header i {
+    transition: transform 0.3s ease;
+    font-size: 0.9rem;
+}
+
+.collapsible-header.active i {
+    transform: rotate(180deg);
+}
+
+.collapsible-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    padding: 0 1.5rem;
+}
+
+.collapsible-content.expanded {
+    padding: 1.5rem;
+}
+
+/* Override existing report body styles for collapsible sections */
+.collapsible-section .collapsible-content ul li {
+    margin-bottom: 0.5rem;
+    padding: 0.25rem;
+    background: transparent;
+    border-radius: 0;
+    border-left: none;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.collapsible-section .collapsible-content ul li:last-child {
+    border-bottom: none;
+}
+
+/* Loading State */
+.loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 50vh;
+    text-align: center;
+}
+
+.loading-spinner {
+    width: 3rem;
+    height: 3rem;
+    border: 0.25rem solid var(--border-color);
+    border-top: 0.25rem solid var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 1rem;
+}
+
+.loading-state h3 {
+    margin: 0 0 0.5rem 0;
+    color: var(--text-primary);
+}
+
+.loading-state p {
+    margin: 0;
+    color: var(--text-muted);
+}
+
+/* Modal Styles */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: var(--background-primary);
+    border-radius: 0.75rem;
+    width: 90%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h3 {
+    margin: 0;
+    color: var(--text-primary);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.25rem;
+    line-height: 1;
+}
+
+.modal-close:hover {
+    color: var(--text-primary);
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    background: var(--background-secondary);
+    color: var(--text-primary);
+    font-size: 1rem;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--primary-color-light);
+}
+
+.form-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 1rem;
+    background: var(--background-secondary);
+    border-radius: 0.5rem;
+    border-left: 3px solid var(--primary-color);
+}
+
+.form-note i {
+    color: var(--primary-color);
+    margin-top: 0.125rem;
+}
+
+.form-note p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.modal-footer {
+    padding: 1.5rem;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+}
+
+/* Animations */
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .analyses-layout {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .analyses-sidebar {
+        position: static;
+        order: 2;
+    }
+
+    .analyses-content {
+        order: 1;
+    }
+
+    .header-nav {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1rem;
+    }
+
+    .header-actions {
+        justify-content: center;
+    }
+
+    .modal-content {
+        width: 95%;
+        margin: 1rem;
+    }
+
+    .report-metadata {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+}

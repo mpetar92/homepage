@@ -22,6 +22,26 @@
                     <h1 id="greeting">Good morning</h1>
                     <p id="current-date">Loading...</p>
                 </div>
+                <div class="header-center">
+                    <div class="quick-links" id="header-quick-links">
+                        <!-- Default links -->
+                        <a href="https://gmail.com" class="quick-link" target="_blank" title="Gmail">
+                            <i class="fas fa-envelope"></i>
+                        </a>
+                        <a href="https://calendar.google.com" class="quick-link" target="_blank" title="Calendar">
+                            <i class="fas fa-calendar"></i>
+                        </a>
+                        <a href="https://github.com" class="quick-link" target="_blank" title="GitHub">
+                            <i class="fab fa-github"></i>
+                        </a>
+                        <a href="https://n8n.srv916746.hstgr.cloud" class="quick-link" target="_blank" title="n8n">
+                            <i class="fas fa-project-diagram"></i>
+                        </a>
+                        <button class="quick-link add-link" onclick="showAddLink()" title="Add Quick Link">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
                 <div class="time-display">
                 <button class="logout-btn" onclick="logout()" title="Logout">
                     <i class="fas fa-sign-out-alt"></i>
@@ -47,62 +67,32 @@
 
             <!-- Dashboard Widgets Grid -->
             <section class="widgets-grid">
-                
-                <!-- Weather Widget -->
-                <div class="widget weather-widget">
+
+                <!-- Today's Agenda Widget -->
+                <div class="widget agenda-widget">
                     <div class="widget-header">
-                        <h3><i class="fas fa-cloud-sun"></i> Weather</h3>
-                        <button class="refresh-btn" onclick="loadWeather()">
-                            <i class="fas fa-sync-alt"></i>
+                        <h3><i class="fas fa-calendar-day"></i> Today's Agenda</h3>
+                        <button class="add-event-btn" onclick="showAddEvent()">
+                            <i class="fas fa-plus"></i>
                         </button>
                     </div>
-                    <div class="widget-content" id="weather-content">
-                        <div class="weather-main">
-                            <div class="temperature" id="temperature">--°</div>
-                            <div class="weather-info">
-                                <div class="location" id="location">Loading...</div>
-                                <div class="description" id="weather-description">--</div>
-                            </div>
-                            <div class="weather-icon" id="weather-icon">
-                                <i class="fas fa-cloud"></i>
-                            </div>
-                        </div>
-                        <div class="weather-details">
-                            <div class="detail-item">
-                                <span>Feels like</span>
-                                <span id="feels-like">--°</span>
-                            </div>
-                            <div class="detail-item">
-                                <span>Humidity</span>
-                                <span id="humidity">--%</span>
-                            </div>
-                            <div class="detail-item">
-                                <span>Wind</span>
-                                <span id="wind-speed">-- km/h</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Calendar Widget -->
-                <div class="widget calendar-widget">
-                    <div class="widget-header">
-                        <h3><i class="fas fa-calendar-alt"></i> Calendar</h3>
-                        <div class="calendar-nav">
-                            <button onclick="changeMonth(-1)"><i class="fas fa-chevron-left"></i></button>
-                            <span id="calendar-month">January 2025</span>
-                            <button onclick="changeMonth(1)"><i class="fas fa-chevron-right"></i></button>
-                        </div>
-                    </div>
                     <div class="widget-content">
-                        <div class="calendar" id="calendar">
-                            <!-- Calendar will be generated here -->
+                        <div class="agenda-date">
+                            <h4 id="agenda-date">Loading...</h4>
                         </div>
-                        <div class="today-events">
-                            <h4>Today's Events</h4>
-                            <div id="events-list">
-                                <p class="no-events">No events scheduled</p>
+                        
+                        <div class="event-input" id="event-input" style="display: none;">
+                            <input type="text" id="new-event-title" placeholder="Event title..." />
+                            <input type="time" id="new-event-time" />
+                            <input type="text" id="new-event-description" placeholder="Description (optional)..." />
+                            <div class="event-buttons">
+                                <button onclick="addEvent()" class="btn-primary">Add</button>
+                                <button onclick="hideAddEvent()" class="btn-secondary">Cancel</button>
                             </div>
+                        </div>
+                        
+                        <div class="agenda-events" id="agenda-events">
+                            <p class="no-events">No events scheduled for today</p>
                         </div>
                     </div>
                 </div>
@@ -132,45 +122,6 @@
                     </div>
                 </div>
 
-                <!-- Quick Links Widget -->
-                <div class="widget links-widget">
-                    <div class="widget-header">
-                        <h3><i class="fas fa-link"></i> Quick Links</h3>
-                        <button class="add-link-btn" onclick="showAddLink()">
-                            <i class="fas fa-plus"></i>
-                        </button>
-                    </div>
-                    <div class="widget-content">
-                        <div class="link-input" id="link-input" style="display: none;">
-                            <input type="text" id="new-link-title" placeholder="Link title..." />
-                            <input type="url" id="new-link-url" placeholder="https://..." />
-                            <div class="link-buttons">
-                                <button onclick="addLink()" class="btn-primary">Add</button>
-                                <button onclick="hideAddLink()" class="btn-secondary">Cancel</button>
-                            </div>
-                        </div>
-                        <div class="links-grid" id="links-grid">
-                            <!-- Default links -->
-                            <a href="https://gmail.com" class="link-item" target="_blank">
-                                <i class="fas fa-envelope"></i>
-                                <span>Gmail</span>
-                            </a>
-                            <a href="https://calendar.google.com" class="link-item" target="_blank">
-                                <i class="fas fa-calendar"></i>
-                                <span>Calendar</span>
-                            </a>
-                            <a href="https://github.com" class="link-item" target="_blank">
-                                <i class="fab fa-github"></i>
-                                <span>GitHub</span>
-                            </a>
-                            <a href="https://n8n.srv916746.hstgr.cloud" class="link-item" target="_blank">
-                                <i class="fas fa-project-diagram"></i>
-                                <span>n8n</span>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Notes Widget -->
                 <div class="widget notes-widget">
                     <div class="widget-header">
@@ -181,6 +132,83 @@
                     </div>
                     <div class="widget-content">
                         <textarea id="notes-content" placeholder="Type your notes here..."></textarea>
+                    </div>
+                </div>
+
+                <!-- GitHub Analysis Widget -->
+                <div class="widget github-widget">
+                    <div class="widget-header">
+                        <h3><i class="fab fa-github"></i> GitHub Analysis</h3>
+                        <div class="github-controls">
+                            <select id="report-selector" onchange="onReportSelectionChange()" style="display: none;">
+                                <option value="">Select a report...</option>
+                            </select>
+                            <button class="btn-secondary" onclick="goToGitHubAnalyses()">
+                                <i class="fas fa-eye"></i> View All
+                            </button>
+                            <button class="btn-primary" id="new-report-btn" onclick="showNewReportDialog()">
+                                <i class="fas fa-plus"></i> New Report
+                            </button>
+                            <button class="refresh-btn" onclick="loadGitHubReports()">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="widget-content" id="github-content">
+                        <div class="github-initial-state">
+                            <div class="initial-message">
+                                <i class="fab fa-github" style="font-size: 3rem; color: var(--text-muted); margin-bottom: 1rem;"></i>
+                                <h4>GitHub Repository Analysis</h4>
+                                <p>Generate AI-powered reports to analyze repository activity, commits, and development trends.</p>
+                            <div class="github-actions">
+                                <button class="btn-primary" onclick="showNewReportDialog()">
+                                    <i class="fas fa-plus"></i> Generate Report
+                                </button>
+                                <button class="btn-secondary" onclick="goToGitHubAnalyses()">
+                                    <i class="fas fa-eye"></i> View All Reports
+                                </button>
+                            </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- New Report Dialog (Modal) -->
+                <div id="new-report-modal" class="modal" style="display: none;">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3><i class="fas fa-chart-line"></i> Generate New Analysis Report</h3>
+                            <button class="modal-close" onclick="hideNewReportDialog()">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="form-group">
+                                <label for="report-owner">Repository Owner:</label>
+                                <input type="text" id="report-owner" placeholder="e.g., facebook, microsoft" />
+                            </div>
+                            <div class="form-group">
+                                <label for="report-repo">Repository Name:</label>
+                                <input type="text" id="report-repo" placeholder="e.g., react, vscode" />
+                            </div>
+                            <div class="form-group">
+                                <label for="report-days">Analysis Period:</label>
+                                <select id="report-days">
+                                    <option value="1">Last 1 day</option>
+                                    <option value="7" selected>Last 7 days</option>
+                                    <option value="14">Last 14 days</option>
+                                    <option value="30">Last 30 days</option>
+                                </select>
+                            </div>
+                            <div class="form-note">
+                                <i class="fas fa-info-circle"></i>
+                                <p>This will analyze the repository activity and generate an AI-powered report. The process may take 30-60 seconds.</p>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn-secondary" onclick="hideNewReportDialog()">Cancel</button>
+                            <button class="btn-primary" onclick="generateNewReport()" id="generate-btn">
+                                <i class="fas fa-cog"></i> Generate Report
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -211,6 +239,32 @@
             </section>
         </div>
     </main>
+    
+    <!-- Add Link Modal -->
+    <div id="link-input-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-link"></i> Add Quick Link</h3>
+                <button class="modal-close" onclick="hideAddLink()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="new-link-title">Link Title:</label>
+                    <input type="text" id="new-link-title" placeholder="e.g., YouTube, Twitter" />
+                </div>
+                <div class="form-group">
+                    <label for="new-link-url">URL:</label>
+                    <input type="url" id="new-link-url" placeholder="https://example.com" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="hideAddLink()">Cancel</button>
+                <button class="btn-primary" onclick="addLink()">
+                    <i class="fas fa-plus"></i> Add Link
+                </button>
+            </div>
+        </div>
+    </div>
 
     <script src="/js/dashboard.js"></script>
 </body>
